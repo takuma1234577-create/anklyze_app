@@ -29,6 +29,7 @@ type AuthContextValue = {
   user: User | null;
   initializing: boolean;
   isAnonymous: boolean;
+  anonymousRestricted: boolean;
   linkWithEmail: (email: string, password: string) => Promise<void>;
   signInEmail: (email: string, password: string) => Promise<void>;
   linkWithGoogle: () => Promise<void>;
@@ -40,17 +41,43 @@ export const AuthContext = createContext<AuthContextValue | undefined>(undefined
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [anonymousRestricted, setAnonymousRestricted] = useState(false);
   const [request, , promptAsync] = Google.useAuthRequest({
     webClientId: ENV.googleClientId,
   });
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser);
-      if (!nextUser) {
+    const tryAnonymousSignIn = async () => {
+      try {
         await signInAnonymously(auth);
+        setAnonymousRestricted(false);
+      } catch (error: unknown) {
+        const code =
+          typeof error === "object" &&
+          error &&
+          "code" in error &&
+          typeof (error as { code?: unknown }).code === "string"
+            ? (error as { code: string }).code
+            : "";
+        if (code.includes("admin-restricted-operation")) {
+          setAnonymousRestricted(true);
+          return;
+        }
+        throw error;
       }
-      setInitializing(false);
+    };
+
+    const unsub = onAuthStateChanged(auth, async (nextUser) => {
+      try {
+        setUser(nextUser);
+        if (!nextUser) {
+          await tryAnonymousSignIn();
+        }
+      } catch {
+        // Keep app usable even if auto sign-in fails.
+      } finally {
+        setInitializing(false);
+      }
     });
     return unsub;
   }, []);
@@ -93,19 +120,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await signOut(auth);
-    await signInAnonymously(auth);
+    try {
+      await signInAnonymously(auth);
+      setAnonymousRestricted(false);
+    } catch {
+      setAnonymousRestricted(true);
+    }
   }, []);
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       initializing,
       isAnonymous: user?.isAnonymous ?? false,
+      anonymousRestricted,
       linkWithEmail,
       signInEmail,
       linkWithGoogle,
       logout,
     }),
-    [initializing, linkWithEmail, linkWithGoogle, logout, signInEmail, user]
+    [
+      anonymousRestricted,
+      initializing,
+      linkWithEmail,
+      linkWithGoogle,
+      logout,
+      signInEmail,
+      user,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

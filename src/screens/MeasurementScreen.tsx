@@ -69,7 +69,10 @@ export function MeasurementScreen() {
   }, [footSide, measurement.lockedAngle]);
 
   const onSaveSession = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      Alert.alert("ログインが必要です", "設定画面からメールまたはGoogleでサインインしてください。");
+      return;
+    }
     if (leftAngle === null && rightAngle === null) {
       Alert.alert("未計測", "左右どちらかの計測を先に行ってください。");
       return;

@@ -7,7 +7,15 @@ import { useSettings } from "../hooks/useSettings";
 import { ENV } from "../config/constants";
 
 export function SettingsScreen() {
-  const { user, isAnonymous, linkWithGoogle, linkWithEmail, signInEmail, logout } = useAuth();
+  const {
+    user,
+    isAnonymous,
+    anonymousRestricted,
+    linkWithGoogle,
+    linkWithEmail,
+    signInEmail,
+    logout,
+  } = useAuth();
   const { isPremium, purchasePremium, restorePurchases } = useRevenueCat();
   const { countdownSeconds, soundEnabled, updateSettings } = useSettings();
 
@@ -40,6 +48,13 @@ export function SettingsScreen() {
       <View className="rounded-2xl border border-slate-200 bg-white p-4">
         <Text className="text-base font-semibold text-slate-900">アカウント</Text>
         <Text className="mt-2 text-sm text-slate-700">状態: {accountLabel}</Text>
+        {anonymousRestricted ? (
+          <View className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <Text className="text-xs text-amber-800">
+              Firebase側で匿名認証が無効です。メールまたはGoogleでサインインしてください。
+            </Text>
+          </View>
+        ) : null}
 
         <Pressable
           onPress={() => guardBusy(linkWithGoogle)}
